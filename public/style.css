@@ -1,0 +1,27 @@
+.page { display: none; }
+.page.active { display: block; }
+body.not-authenticated .role-logged-in { display: none; }
+body.authenticated .role-logged-out { display: none; }
+.role-admin { display: none; }
+body.is-admin .role-admin { display: block; }
+
+/* HOME */
+.card{
+    height: calc(max-content + 15px);
+    padding: 15px;
+}
+.note{
+    background-color: rgba(0, 255, 255, 0.726);
+    height: 50px;
+    padding: 12px;
+    border-radius: 5px;
+    width: max-content;
+    margin: 0%;
+}
+.local-storage{
+    color: rgb(240, 7, 162);
+}
+.get-started{
+    margin-top: 10px;
+    width: max-content;
+}
