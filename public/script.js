@@ -1,93 +1,45 @@
-const STORAGE_KEY = "ipt_demo_v1";
+const API = "http://localhost:3000/api";
 let currentUser = null;
 
-/* ================= STORAGE ================= */
+function setAuthState(isAuth, user) {
 
-function loadFromStorage(){
-
-    let data = localStorage.getItem(STORAGE_KEY);
-
-    if(data == null){
-
-        window.db = {
-            accounts:[
-                {
-                    first:"Admin",
-                    last:"User",
-                    email:"admin@example.com",
-                    password:"Password123!",
-                    role:"admin",
-                    verified:true
-                }
-            ],
-            departments:[],
-            employees:[],
-            requests:[]
-        };
-
-        saveToStorage();
-
-    }else{
-
-        window.db = JSON.parse(data);
-
-    }
-
-}
-
-function saveToStorage(){
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(window.db));
-
-}
-
-
-/* ================= AUTH STATE ================= */
-
-function setAuthState(isAuth,user){
-
-    if(user){
+    if (user) {
         currentUser = user;
-    }else{
+    } else {
         currentUser = null;
     }
 
-    if(isAuth){
+    if (isAuth) {
         document.body.classList.add("authenticated");
         document.body.classList.remove("not-authenticated");
-    }else{
+    } else {
         document.body.classList.add("not-authenticated");
         document.body.classList.remove("authenticated");
     }
 
-    if(user && user.role === "admin"){
+    if (user && user.role === "admin") {
         document.body.classList.add("is-admin");
-    }else{
+    } else {
         document.body.classList.remove("is-admin");
     }
 
     let name = document.getElementById("nav-username");
 
-    if(name){
-        name.textContent = user ? user.first : "";
+    if (name) {
+        name.textContent = user ? user.username : "";
     }
 
 }
 
-
-/* ================= ROUTING ================= */
-
-function navigateTo(hash){
-
+function navigateTo(hash) {
     window.location.hash = hash;
-
 }
 
-function showPage(id){
+function showPage(id) {
 
     let pages = document.querySelectorAll(".page");
 
-    for(let i=0;i<pages.length;i++){
+    for (let i = 0; i < pages.length; i++) {
         pages[i].classList.remove("active");
     }
 
@@ -95,24 +47,22 @@ function showPage(id){
 
 }
 
-function handleRouting(){
+function handleRouting() {
 
     let hash = window.location.hash;
 
-    if(hash == ""){
+    if (hash == "") {
         hash = "#/";
         navigateTo(hash);
     }
 
-    if(hash === "#/") showPage("home-page");
-    if(hash === "#/register") showPage("register-page");
-    if(hash === "#/login") showPage("login-page");
-    if(hash === "#/verify-email") showPage("verify-page");
+    if (hash === "#/")         showPage("home-page");
+    if (hash === "#/register") showPage("register-page");
+    if (hash === "#/login")    showPage("login-page");
 
+    if (hash === "#/profile") {
 
-    if(hash === "#/profile"){
-
-        if(!currentUser){
+        if (!currentUser) {
             navigateTo("#/login");
             return;
         }
@@ -122,10 +72,21 @@ function handleRouting(){
 
     }
 
+    if (hash === "#/dashboard") {
 
-    if(hash === "#/accounts"){
+        if (!currentUser || currentUser.role !== "admin") {
+            navigateTo("#/");
+            return;
+        }
 
-        if(!currentUser || currentUser.role !== "admin"){
+        renderDashboard();
+        showPage("dashboard-page");
+
+    }
+
+    if (hash === "#/accounts") {
+
+        if (!currentUser || currentUser.role !== "admin") {
             navigateTo("#/");
             return;
         }
@@ -135,10 +96,21 @@ function handleRouting(){
 
     }
 
+    if (hash === "#/employees") {
 
-    if(hash === "#/departments"){
+        if (!currentUser || currentUser.role !== "admin") {
+            navigateTo("#/");
+            return;
+        }
 
-        if(!currentUser || currentUser.role !== "admin"){
+        renderEmployees();
+        showPage("employees-page");
+
+    }
+
+    if (hash === "#/departments") {
+
+        if (!currentUser || currentUser.role !== "admin") {
             navigateTo("#/");
             return;
         }
@@ -148,24 +120,9 @@ function handleRouting(){
 
     }
 
+    if (hash === "#/requests") {
 
-    if(hash === "#/employees"){
-
-        if(!currentUser || currentUser.role !== "admin"){
-            navigateTo("#/");
-            return;
-        }
-
-        renderEmployees();
-        addEmployee();
-        showPage("employees-page");
-
-    }
-
-
-    if(hash === "#/requests"){
-
-        if(!currentUser){
+        if (!currentUser) {
             navigateTo("#/login");
             return;
         }
@@ -177,585 +134,442 @@ function handleRouting(){
 
 }
 
-
-/* ================= REGISTER ================= */
-
-document.getElementById("register-form").onsubmit = function(e){
+document.getElementById("register-form").onsubmit = async function (e) {
 
     e.preventDefault();
 
-    let first = document.getElementById("reg-first").value;
-    let last = document.getElementById("reg-last").value;
-    let email = document.getElementById("reg-email").value;
+    let username = document.getElementById("reg-username").value;
     let password = document.getElementById("reg-password").value;
 
-    for(let i=0;i<window.db.accounts.length;i++){
-
-        if(window.db.accounts[i].email === email){
-            alert("Email already exists");
-            return;
-        }
-
-    }
-
-    window.db.accounts.push({
-        first:first,
-        last:last,
-        email:email,
-        password:password,
-        role:"user",
-        verified:false
+    const res  = await fetch(API + "/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
     });
 
-    localStorage.setItem("unverified_email",email);
+    const data = await res.json();
 
-    saveToStorage();
-
-    navigateTo("#/verify-email");
-
-};
-
-
-/* ================= VERIFY ================= */
-
-document.getElementById("verify-btn").onclick = function(){
-
-    let email = localStorage.getItem("unverified_email");
-
-    for(let i=0;i<window.db.accounts.length;i++){
-
-        if(window.db.accounts[i].email === email){
-
-            window.db.accounts[i].verified = true;
-
-        }
-
-    }
-
-    saveToStorage();
-
-    alert("Email Verified");
-
-    navigateTo("#/login");
-
-};
-
-
-/* ================= LOGIN ================= */
-
-async function login(username, password){
-    try{
-        const response = await fetch('http://localhost:3000/api/login', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({username, password})
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-
-        } else {
-            alert ('Login failed: ' + data.error);
-        }
-    } catch(err) {
-        alert('Network error');
-    }
-}
-
-function getAuthHeader() {
-    const token = sessionStorage.getItem('authToken');
-    return token ? {Authorization: `Bearer ${token}` } : {};
-}
-
-async function loadAdminDashboard() {
-    const res = await fetch('http://localhost:3000/api/admin/dashboard', {
-        headers: getAuthHeader()
-    });
     if (res.ok) {
-        const data = await res.json();
-        document.getElementById('content').innerText = data.message;
+        alert("Registered successfully! Please login.");
+        navigateTo("#/login");
     } else {
-        document.getElementById('content').innerText = 'Access Denied!';
+        alert(data.error);
     }
-}
 
+};
 
-
-
-/*document.getElementById("login-form").onsubmit = function(e){
+document.getElementById("login-form").onsubmit = async function (e) {
 
     e.preventDefault();
 
-    let email = document.getElementById("login-email").value;
+    let username = document.getElementById("login-username").value;
     let password = document.getElementById("login-password").value;
 
-    let foundUser = null;
+    const res  = await fetch(API + "/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+    });
 
-    for(let i=0;i<window.db.accounts.length;i++){
+    const data = await res.json();
 
-        let acc = window.db.accounts[i];
-
-        if(acc.email === email && acc.password === password && acc.verified){
-
-            foundUser = acc;
-
-        }
-
+    if (res.ok) {
+        sessionStorage.setItem("token", data.token);
+        setAuthState(true, data.user);
+        navigateTo("#/profile");
+    } else {
+        alert(data.error);
     }
 
-    if(!foundUser){
+};
 
-        alert("Invalid login or email not verified");
-        return;
+document.getElementById("logout-btn").onclick = function () {
 
-    }
+    sessionStorage.removeItem("token");
 
-    localStorage.setItem("auth_token",email);
-
-    setAuthState(true,foundUser);
-
-    navigateTo("#/profile");
-
-};*/
-
-
-
-/* ================= LOGOUT ================= */
-
-document.getElementById("logout-btn").onclick = function(){
-
-    localStorage.removeItem("auth_token");
-
-    setAuthState(false,null);
+    setAuthState(false, null);
 
     navigateTo("#/");
 
 };
 
+async function renderProfile() {
 
-/* ================= PROFILE ================= */
+    let token = sessionStorage.getItem("token");
 
-function renderProfile(){
+    const res  = await fetch(API + "/profile", {
+        headers: { "Authorization": "Bearer " + token }
+    });
+
+    const data = await res.json();
 
     let div = document.getElementById("profile-info");
 
-    div.innerHTML = `
-        <p><b>Name:</b> ${currentUser.first} ${currentUser.last}</p>
-        <p><b>Email:</b> ${currentUser.email}</p>
-        <p><b>Role:</b> ${currentUser.role}</p>
-    `;
+    if (res.ok) {
+        div.innerHTML = `
+            <p><b>Username:</b> ${data.user.username}</p>
+            <p><b>Role:</b> ${data.user.role}</p>
+        `;
+    } else {
+        div.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+    }
 
 }
 
+async function renderDashboard() {
 
-/* ================= ACCOUNTS ================= */
+    let token = sessionStorage.getItem("token");
 
-function renderAccounts(){
+    const res  = await fetch(API + "/admin/dashboard", {
+        headers: { "Authorization": "Bearer " + token }
+    });
+
+    const data = await res.json();
+
+    let div = document.getElementById("dashboard-info");
+
+    if (res.ok) {
+        div.innerHTML = `
+            <p>${data.message}</p>
+            <p><b>Data:</b> ${data.data}</p>
+        `;
+    } else {
+        div.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+    }
+
+}
+
+async function renderAccounts() {
+
+    let token = sessionStorage.getItem("token");
+
+    const res   = await fetch(API + "/accounts", {
+        headers: { "Authorization": "Bearer " + token }
+    });
+
+    const accounts = await res.json();
 
     let table = document.getElementById("accounts-table");
 
     table.innerHTML = "";
 
-    for(let i=0;i<window.db.accounts.length;i++){
+    for (let i = 0; i < accounts.length; i++) {
 
-        let acc = window.db.accounts[i];
+        let acc = accounts[i];
 
         table.innerHTML += `
         <tr>
-            <td>${acc.first} ${acc.last}</td>
-            <td>${acc.email}</td>
+            <td>${acc.username}</td>
             <td>${acc.role}</td>
-            <td>${acc.verified ? "✔" : "—"}</td>
             <td>
-                <button class="btn btn-outline-primary"onclick="editAccount('${acc.email}')">Edit</button>
-                <button class="btn btn-outline-warning"onclick="resetPassword('${acc.email}')">Reset</button>
-                <button class="btn btn-outline-danger"onclick="deleteAccount('${acc.email}')">Delete</button>
+                <button class="btn btn-outline-danger" onclick="deleteAccount(${acc.id})">Delete</button>
             </td>
         </tr>
         `;
+
     }
 
 }
 
-function editAccount(email){
+document.getElementById("add-account-btn").onclick = function () {
+    navigateTo("#/register");
+};
 
-    for(let i=0;i<window.db.accounts.length;i++){
+async function deleteAccount(id) {
 
-        let acc = window.db.accounts[i];
+    if (!confirm("Delete this account?")) return;
 
-        if(acc.email === email){
+    let token = sessionStorage.getItem("token");
 
-            let first = prompt("First Name:",acc.first);
-            let last = prompt("Last Name:",acc.last);
+    await fetch(API + "/accounts/" + id, {
+        method: "DELETE",
+        headers: { "Authorization": "Bearer " + token }
+    });
 
-            if(first) acc.first = first;
-            if(last) acc.last = last;
-
-        }
-
-    }
-
-    saveToStorage();
-    renderAccounts();
-}
-
-function resetPassword(email){
-
-    for(let i=0;i<window.db.accounts.length;i++){
-
-        let acc = window.db.accounts[i];
-
-        if(acc.email === email){
-
-            let pass = prompt("New Password:");
-
-            if(pass){
-                acc.password = pass;
-                alert("Password Reset");
-            }
-
-        }
-
-    }
-
-    saveToStorage();
     renderAccounts();
 
 }
 
-function deleteAccount(email){
+async function renderEmployees() {
 
-    if(email === currentUser.email){
+    let token = sessionStorage.getItem("token");
 
-        alert("Cannot delete your own account");
-        return;
+    const res   = await fetch(API + "/employees", {
+        headers: { "Authorization": "Bearer " + token }
+    });
+
+    const employees = await res.json();
+
+    let table = document.getElementById("employees-table");
+
+    table.innerHTML = "";
+
+    for (let i = 0; i < employees.length; i++) {
+
+        let e = employees[i];
+
+        table.innerHTML += `
+        <tr>
+            <td>${e.employeeId}</td>
+            <td>${e.email}</td>
+            <td>${e.position}</td>
+            <td>${e.department}</td>
+            <td>
+                <button class="btn btn-outline-danger" onclick="deleteEmployee(${e.id})">Delete</button>
+            </td>
+        </tr>
+        `;
 
     }
-
-    for(let i=0;i<window.db.accounts.length;i++){
-
-        if(window.db.accounts[i].email === email){
-
-            window.db.accounts.splice(i,1);
-
-        }
-
-    }
-
-    saveToStorage();
-    renderAccounts();
 
 }
 
+document.getElementById("add-employee-btn").onclick = function () {
+    document.getElementById("employee-form-card").style.display = "block";
+};
 
-/* ================= DEPARTMENTS ================= */
+document.getElementById("cancel-employee-btn").onclick = function () {
+    document.getElementById("employee-form-card").style.display = "none";
+};
 
-function renderDepartments(){
+document.getElementById("employee-form").onsubmit = async function (e) {
+
+    e.preventDefault();
+
+    let token = sessionStorage.getItem("token");
+
+    let body = {
+        employeeId: document.getElementById("empId").value,
+        email:      document.getElementById("empEmail").value,
+        position:   document.getElementById("empPosition").value,
+        department: document.getElementById("empDepartment").value,
+        hireDate:   document.getElementById("empDate").value
+    };
+
+    await fetch(API + "/employees", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+        body: JSON.stringify(body)
+    });
+
+    document.getElementById("employee-form-card").style.display = "none";
+    renderEmployees();
+
+};
+
+async function deleteEmployee(id) {
+
+    if (!confirm("Delete this employee?")) return;
+
+    let token = sessionStorage.getItem("token");
+
+    await fetch(API + "/employees/" + id, {
+        method: "DELETE",
+        headers: { "Authorization": "Bearer " + token }
+    });
+
+    renderEmployees();
+
+}
+
+async function renderDepartments() {
+
+    let token = sessionStorage.getItem("token");
+
+    const res   = await fetch(API + "/departments", {
+        headers: { "Authorization": "Bearer " + token }
+    });
+
+    const departments = await res.json();
 
     let table = document.getElementById("departments-table");
 
     table.innerHTML = "";
 
-    for(let i=0;i<window.db.departments.length;i++){
+    for (let i = 0; i < departments.length; i++) {
 
-        let d = window.db.departments[i];
+        let d = departments[i];
 
         table.innerHTML += `
         <tr>
             <td>${d.name}</td>
             <td>${d.description}</td>
             <td>
-                <button class="btn btn-outline-primary"onclick="editDepartment('${d.name}')">Edit</button>
-                <button class="btn btn-outline-danger"onclick="deleteDepartment('${d.name}')">Delete</button>
-            </td>
-        </tr>
-        `
-    }
-}
-
-function editDepartment(name){
-
-    for(let i=0;i<window.db.departments.length;i++){
-
-        let d = window.db.departments[i];
-
-        if(d.name === name){
-
-            let newName = prompt("Name:", d.name);
-            let newDesc = prompt("Description:", d.description)
-
-            if(newName) d.name = newName;
-            if(newDesc) d.description = newDesc;
-
-            saveToStorage();
-            renderDepartments();
-        }
-    }
-}
-
-function deleteDepartment(name){
-
-    for(let i=0;i<window.db.departments.length;i++){
-
-        if(window.db.departments[i].name === name){
-            window.db.departments.splice(i,1);
-        }
-
-        saveToStorage();
-        renderDepartments();
-    }
-}
-
-function addDepartment(){
-
-    let name = prompt("Department:");
-    if(!name) return alert("Department name is required.");
-    for(let i=0;i<window.db.departments.length;i++){
-        if(window.db.departments[i].name === name){
-            return alert("This department name already exists.")
-        }
-    }
-
-    let description = prompt("Description:");
-    if(!description) description = "";
-
-
-    window.db.departments.push({
-        name: name,
-        description: description
-    });
-
-    saveToStorage();
-    renderDepartments();
-}
-
-
-/* ================= EMPLOYEES ================= */
-
-function renderEmployees(){
-
-    let table = document.getElementById("employees-table");
-
-    table.innerHTML = "";
-
-    for(let i=0;i<window.db.employees.length;i++){
-
-        let e = window.db.employees[i];
-
-        table.innerHTML += `
-        <tr>
-            <td>${e.id}</td>
-            <td>${e.email}</td>
-            <td>${e.position}</td>
-            <td>${e.department}</td>
-            <td>
-                <button class="btn btn-outline-primary"onclick="editEmployee('${e.id}')">Edit</button>
-                <button class="btn btn-outline-danger"onclick="deleteEmployee('${e.id}')">Delete</button>
+                <button class="btn btn-outline-danger" onclick="deleteDepartment(${d.id})">Delete</button>
             </td>
         </tr>
         `;
 
     }
+
 }
 
-function addEmployee(){
+document.getElementById("add-department-btn").onclick = async function () {
 
-    let e = window.db.employees;
+    let name = prompt("Department Name:");
+    if (!name) return alert("Department name is required.");
 
-    document.getElementById("employee-form").onsubmit = function(e){
+    let description = prompt("Description:") || "";
 
-        let id = document.getElementById("empId").value;
-        let email = document.getElementById("empEmail").value;
-        let position = document.getElementById("empPosition").value;
-        let department = document.getElementById("empDepartment").value;
-        let date = document.getElementById("empDate").value;
+    let token = sessionStorage.getItem("token");
 
-        let departmentExists = false;
-        for(let i=0;i<window.db.departments.length;i++){
+    await fetch(API + "/departments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+        body: JSON.stringify({ name, description })
+    });
 
-            if(window.db.departments[i].name === department){
-                departmentExists = true;
-            }
-        }
+    renderDepartments();
 
-        if(departmentExists){ 
-            window.db.employees.push({
-            id: id,
-            email: email,
-            position: position,
-            department: department,
-            date: date});
-        }
-        else{
-            return alert("Department name doesn't exists.");
-        }
+};
 
-        saveToStorage();
-        renderEmployees();
-        
-    }
+async function deleteDepartment(id) {
+
+    if (!confirm("Delete this department?")) return;
+
+    let token = sessionStorage.getItem("token");
+
+    await fetch(API + "/departments/" + id, {
+        method: "DELETE",
+        headers: { "Authorization": "Bearer " + token }
+    });
+
+    renderDepartments();
+
 }
 
-function editEmployee(id){  
+async function renderRequests() {
 
-    for(let i=0;i<window.db.employees.length;i++){
+    let token = sessionStorage.getItem("token");
 
-        let e = window.db.employees[i];
+    const res   = await fetch(API + "/requests", {
+        headers: { "Authorization": "Bearer " + token }
+    });
 
-        if(e.id === id){
-
-            let newId = prompt("New ID:");
-            let newEmail = prompt("New Email:");
-            let newPosition = prompt("New Position:");
-            let newDepartment = prompt("New Department:");
-
-            if(newId) e.id = newId;
-            if(newEmail) e.email = newEmail;
-            if(newPosition) e.position = newPosition;
-            if(newDepartment) e.department = newDepartment;
-
-            saveToStorage();
-            renderEmployees();
-        }
-    }
-}
-
-function deleteEmployee(id){
-
-    for(let i=0;i<window.db.employees.length;i++){
-
-        if(window.db.employees[i].id === id){
-            window.db.employees.splice(i,1);
-
-            saveToStorage();
-            renderEmployees();
-        }
-    }
-}
-
-/* ================= REQUESTS ================= */
-
-function renderRequests(){
+    const requests = await res.json();
 
     let table = document.getElementById("requests-table");
 
     table.innerHTML = "";
 
-    let hasRequest = false;
-
-    for(let i=0;i<window.db.requests.length;i++){
-
-        let r = window.db.requests[i];
-
-        if(r.employeeEmail === currentUser.email){
-
-            hasRequest = true;
-
-            table.innerHTML += `
-            <tr>
-                <td>${r.type}</td>
-                <td>${r.date}</td>
-                <td><span class="badge bg-warning">${r.status}</span></td>
-            </tr>
-            `;
-
-        }
-    }
-
-    if(!hasRequest){
+    if (requests.length === 0) {
 
         table.innerHTML = `
         <tr>
-            <td colspan="3" style="text-align:center;">
+            <td colspan="4" style="text-align:center;">
                 You have no requests yet.
             </td>
         </tr>
         `;
 
+        return;
+
     }
+
+    for (let i = 0; i < requests.length; i++) {
+
+        let r = requests[i];
+
+        table.innerHTML += `
+        <tr>
+            <td>${r.type}</td>
+            <td>${r.items ? r.items.join(", ") : ""}</td>
+            <td>${r.date}</td>
+            <td><span class="badge bg-warning">${r.status}</span></td>
+        </tr>
+        `;
+
+    }
+
 }
 
-function addItem(){
+document.getElementById("add-item-btn").onclick = function () {
 
     let list = document.getElementById("items-list");
 
     list.innerHTML += `
         <div class="item-row row g-1 my-1">
             <div class="col-sm-9">
-                <input class="item-name form-control " type="text" placeholder="Item Name">
+                <input class="item-name form-control" type="text" placeholder="Item Name">
             </div>
             <div class="col">
                 <input class="item-qty form-control" type="number" value="1" style="width:50px">
             </div>
             <div class="col">
-                <button class="btn btn-danger" onclick="removeItem(this)"><b>X</b></button>
+                <button type="button" class="btn btn-danger" onclick="this.closest('.item-row').remove()"><b>X</b></button>
             </div>
         </div>
     `;
-}
 
-function removeItem(button){
+};
 
-    button.parentElement.parentElement.remove();
-}
+document.getElementById("submit-request-btn").onclick = async function () {
 
-function submitRequest(){
-
-    let type = document.getElementById("request-type").value;
-
-    let rows = document.querySelectorAll("#items-list .item-row");
-
+    let type  = document.getElementById("request-type").value;
+    let rows  = document.querySelectorAll("#items-list .item-row");
     let items = [];
+    let token = sessionStorage.getItem("token");
 
-    for(let i = 0; i < rows.length; i++){
+    for (let i = 0; i < rows.length; i++) {
 
-        let name = rows[i].children[0].value;
+        let name = rows[i].querySelector(".item-name").value.trim();
+        let qty  = rows[i].querySelector(".item-qty").value;
 
-        if(name !== ""){
-            items.push(name);
-        }
+        if (name) items.push({ name, qty });
 
     }
 
-    if(items.length === 0){
-        alert("Add at least one item");
+    if (items.length === 0) {
+        alert("Add at least one item.");
         return;
     }
 
-    window.db.requests.push({
-        employeeEmail: currentUser.email,
-        type: type,
-        date: new Date().toLocaleDateString(),
-        status: "Pending",
-        items: items
+    await fetch(API + "/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+        body: JSON.stringify({ type, items })
     });
 
-    saveToStorage();
+    bootstrap.Modal.getInstance(document.getElementById("requestModal")).hide();
     renderRequests();
 
-}
+};
 
-/* ================= INIT ================= */
+document.getElementById("get-started-btn").onclick = function () {
+    navigateTo(currentUser ? "#/profile" : "#/login");
+};
 
-loadFromStorage();
+async function init() {
 
-let token = localStorage.getItem("auth_token");
+    let token = sessionStorage.getItem("token");
 
-if(token){
+    if (token) {
 
-    for(let i=0;i<window.db.accounts.length;i++){
+        const res = await fetch(API + "/profile", {
+            headers: { "Authorization": "Bearer " + token }
+        });
 
-        if(window.db.accounts[i].email === token){
+        if (res.ok) {
 
-            setAuthState(true,window.db.accounts[i]);
+            const data = await res.json();
+            setAuthState(true, data.user);
+
+        } else {
+
+            sessionStorage.removeItem("token");
+            setAuthState(false, null);
 
         }
 
+    } else {
+
+        setAuthState(false, null);
+
     }
+
+    handleRouting();
 
 }
 
-window.addEventListener("hashchange",handleRouting);
-
-handleRouting();
+window.addEventListener("hashchange", handleRouting);
+init();
